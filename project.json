@@ -1,0 +1,14 @@
+{
+  "tagline": "C2PA Content Credential inspection and policy gate",
+  "headline": "Provenance is a chain, not a badge.",
+  "summary": "Inspect claims, actions, ingredients, validation status, and signing metadata behind Content Credentials.",
+  "accent": "#f4d35e",
+  "topics": "c2pa,content-credentials,media-provenance,ai-generated-content,verification",
+  "sources": [
+    [
+      "C2PA manifest model",
+      "https://opensource.contentauthenticity.org/docs/manifest/understanding-manifest/"
+    ]
+  ],
+  "name": "manifestlens"
+}

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manifestlens"
+version = "0.1.0"
+description = "C2PA Content Credential inspection and policy gate"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Ahmed Doghri"}]
+dependencies = ["c2pa-python>=0.37"]
+
+[project.scripts]
+manifestlens = "manifestlens.cli:main"
+
+[tool.setuptools]
+packages = ["manifestlens"]
+
+[tool.setuptools.package-data]
+manifestlens = ["web/*.html"]
