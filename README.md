@@ -40,6 +40,35 @@ Open <http://127.0.0.1:8090>. Analyze your own JSON input with `manifestlens ana
 
 The demo manifest resolves to one parent ingredient, three declared edits (opened, cropped, color-adjusted), an issuer and signing timestamp, and a confirmed hard-binding assertion — a complete, honest edit history, not a blank "trust me" badge. The test suite doesn't stop at the synthetic fixture: it reads a real, officially signed `C_with_CAWG_data.jpg` sample through the actual C2PA SDK.
 
+## Update: fixed a fail-open bug on missing validation data
+
+`analyze()` treated an *absent* `validation_status` field the same as an
+*empty* one — both defaulted to `[]`, so `valid` came out `True` either
+way. That's wrong: an empty list (after real validation ran) means "no
+errors found," but a missing key means no cryptographic check happened at
+all. Any caller — or an attacker crafting a payload for `/api/analyze` —
+could mark a completely unverified manifest `valid: true` just by
+omitting the field, which defeats the entire point of a provenance
+validator.
+
+Separately, `has_hard_binding` only checked whether a `c2pa.hash*`
+assertion *label* was present in the manifest, not whether that specific
+binding check actually passed. A manifest whose `validation_status`
+explicitly reported a hash mismatch (a real tampering signal) still
+reported `has_hard_binding: true` — misleading for a field the README
+calls "the part that actually cryptographically ties the manifest to
+this specific asset."
+
+Fixed both: `validation_status_present` now distinguishes "absent" from
+"empty," and `valid` requires the status to have actually been supplied.
+`has_hard_binding` now also requires that no reported error concerns
+hashing or data binding specifically — an unrelated validation error
+(e.g. an expired signing credential) no longer falsely clears a genuinely
+intact binding. `tests/test_validation_status_fail_open.py` covers both
+directions. The published demo output is unaffected; the real-asset
+integration test (which reads the real `c2pa-python` SDK output,
+verified to include a populated `validation_status`) is unaffected too.
+
 ## Scope
 
 A valid, hard-bound Content Credential proves the manifest is genuinely tied to this asset and hasn't been swapped onto a different one. It does not prove the depicted event actually happened, that the signer is trustworthy, or that unsigned content is false — provenance and truth are different claims.

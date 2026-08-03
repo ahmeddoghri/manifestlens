@@ -24,6 +24,9 @@ DEMO = {
 }
 
 
+_MISSING = object()
+
+
 def analyze(payload: dict[str, Any]) -> dict[str, Any]:
     manifests = payload.get("manifests", {})
     active_id = payload.get("active_manifest") or payload.get("activeManifest")
@@ -38,12 +41,23 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
         labels.append(label)
         if label.startswith("c2pa.actions"):
             actions.extend(item.get("action") for item in assertion.get("data", {}).get("actions", []) if item.get("action"))
-    status = payload.get("validation_status") or payload.get("validationStatus") or []
+    # `validation_status` absent from the payload means no cryptographic
+    # check was actually performed -- that must NOT be treated the same as
+    # "checked, no errors found" (an empty list). Conflating the two lets
+    # any caller mark an unverified manifest "valid" simply by omitting the
+    # field, which defeats the entire point of a provenance validator.
+    raw_status = payload.get("validation_status", _MISSING)
+    if raw_status is _MISSING:
+        raw_status = payload.get("validationStatus", _MISSING)
+    status_present = raw_status is not _MISSING
+    status = raw_status if status_present and raw_status is not None else []
     errors = [item for item in status if (item.get("code", "").lower().endswith("mismatch") or item.get("success") is False)]
+    binding_errors = [item for item in errors if "hash" in item.get("code", "").lower() or "databinding" in item.get("code", "").lower()]
     signature = manifest.get("signature_info") or manifest.get("signatureInfo") or {}
     return {
         "active_manifest": active_id,
-        "valid": not errors,
+        "valid": status_present and not errors,
+        "validation_status_present": status_present,
         "validation_entries": len(status),
         "validation_errors": errors,
         "claim_generator": manifest.get("claim_generator") or manifest.get("claimGenerator"),
@@ -54,7 +68,7 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
         "ingredient_count": len(manifest.get("ingredients", [])),
         "actions": actions,
         "assertion_labels": labels,
-        "has_hard_binding": any(label.startswith("c2pa.hash") for label in labels),
+        "has_hard_binding": any(label.startswith("c2pa.hash") for label in labels) and not binding_errors,
         "scope": "Validation reports provenance integrity and signer context; it does not prove that depicted events are true.",
     }
 
