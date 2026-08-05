@@ -17,7 +17,7 @@ Resolve the active manifest, walk its assertions for the C2PA actions list (open
 - Full action, ingredient, and signature extraction from a C2PA manifest store
 - Hard-binding detection — whether the manifest is actually tied to the asset, not just adjacent to it
 - Real signed-asset inspection through the official `c2pa-python` reader, not a custom parser
-- CLI, JSON API, browser workbench, Docker, tests, and CI
+- CLI, JSON API, browser workbench, Docker, tests
 
 ## Run it end to end
 
