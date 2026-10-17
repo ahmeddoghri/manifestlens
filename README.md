@@ -1,5 +1,7 @@
 # manifestlens
 
+[![tests](https://github.com/ahmeddoghri/manifestlens/actions/workflows/tests.yml/badge.svg)](https://github.com/ahmeddoghri/manifestlens/actions/workflows/tests.yml) [![case study](https://img.shields.io/badge/case%20study-adoghri.com-e0703e)](https://adoghri.com/project-52.html)
+
 **"This image has a Content Credential" tells you nothing until someone actually reads what's inside it.**
 
 ![manifestlens cover](demo/cover.png)
