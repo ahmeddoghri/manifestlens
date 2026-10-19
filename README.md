@@ -71,6 +71,32 @@ directions. The published demo output is unaffected; the real-asset
 integration test (which reads the real `c2pa-python` SDK output,
 verified to include a populated `validation_status`) is unaffected too.
 
+## Proving it on a real asset, and on a tampered one
+
+The committed sample is a genuinely signed C2PA JPEG, read through the
+official SDK. Flipping 400 bytes deep in the image data produces the result
+the whole format exists for:
+
+| | untouched | 400 bytes flipped |
+| --- | :---: | :---: |
+| `valid` | true | **false** |
+| `has_hard_binding` | true | **false** |
+| error | none | `assertion.dataHash.mismatch` |
+
+Running that comparison turned up two things the report was getting wrong on
+real input, both invisible on the synthetic demo:
+
+* **Hard binding was read from assertion labels only.** A real asset records
+  its binding as a *success* code under `validation_results`, never as an
+  assertion label, so genuinely bound files reported `has_hard_binding:
+  false` while the hand-written demo reported `true`. Binding is now taken
+  from either source, and still cleared by a binding error.
+* **Signer trust was silently dropped.** Only codes ending in `mismatch`
+  counted as errors, so `signingCredential.untrusted` appeared nowhere and
+  the report read as clean. Integrity and trust are separate questions, so
+  the report now answers both: `valid` covers integrity, `signer_trusted`
+  and `validation_warnings` cover the credential.
+
 ## Scope
 
 A valid, hard-bound Content Credential proves the manifest is genuinely tied to this asset and hasn't been swapped onto a different one. It does not prove the depicted event actually happened, that the signer is trustworthy, or that unsigned content is false — provenance and truth are different claims.

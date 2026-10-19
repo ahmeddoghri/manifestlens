@@ -51,15 +51,59 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
         raw_status = payload.get("validationStatus", _MISSING)
     status_present = raw_status is not _MISSING
     status = raw_status if status_present and raw_status is not None else []
-    errors = [item for item in status if (item.get("code", "").lower().endswith("mismatch") or item.get("success") is False)]
-    binding_errors = [item for item in errors if "hash" in item.get("code", "").lower() or "databinding" in item.get("code", "").lower()]
+    # Newer c2pa-python reports outcomes under validation_results rather than
+    # validation_status, so read both. A real signed asset records its hard
+    # binding as a *success* code there and never as an assertion label, which
+    # is why label-only detection reported no binding for genuinely bound
+    # files while the synthetic demo reported one.
+    results = payload.get("validation_results") or payload.get("validationResults") or {}
+    active_results = results.get("activeManifest") or results.get("active_manifest") or {}
+    successes = [item for item in active_results.get("success", []) if isinstance(item, dict)]
+    failures = [item for item in active_results.get("failure", []) if isinstance(item, dict)]
+    status_present = status_present or bool(successes or failures)
+
+    def _code(item: dict[str, Any]) -> str:
+        return str(item.get("code", "")).lower()
+
+    def _unique(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # The SDK can report the same outcome in validation_status and in
+        # validation_results; counting it twice would overstate the report.
+        seen: set[tuple[str, str]] = set()
+        out = []
+        for item in items:
+            key = (_code(item), str(item.get("url", "")))
+            if key not in seen:
+                seen.add(key)
+                out.append(item)
+        return out
+
+    reported = _unique(list(status) + successes + failures)
+    errors = [
+        item for item in reported
+        if _code(item).endswith("mismatch") or item.get("success") is False
+    ]
+    binding_errors = [item for item in errors if "hash" in _code(item) or "databinding" in _code(item)]
+    # Integrity and trust are different questions. An untrusted, revoked or
+    # expired signing credential is not a hash mismatch, so it must not be
+    # silently dropped from a report that otherwise reads as clean.
+    trust_markers = ("untrusted", "revoked", "expired", "invalid")
+    warnings = [
+        item for item in reported
+        if item not in errors and any(marker in _code(item) for marker in trust_markers)
+    ]
+    binding_verified = any(
+        "hash" in _code(item) and _code(item).endswith((".match", ".validated"))
+        for item in successes
+    )
     signature = manifest.get("signature_info") or manifest.get("signatureInfo") or {}
     return {
         "active_manifest": active_id,
         "valid": status_present and not errors,
         "validation_status_present": status_present,
-        "validation_entries": len(status),
+        "validation_entries": len(reported),
         "validation_errors": errors,
+        "validation_warnings": warnings,
+        "signer_trusted": not warnings,
         "claim_generator": manifest.get("claim_generator") or manifest.get("claimGenerator"),
         "title": manifest.get("title"),
         "format": manifest.get("format"),
@@ -68,8 +112,8 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
         "ingredient_count": len(manifest.get("ingredients", [])),
         "actions": actions,
         "assertion_labels": labels,
-        "has_hard_binding": any(label.startswith("c2pa.hash") for label in labels) and not binding_errors,
-        "scope": "Validation reports provenance integrity and signer context; it does not prove that depicted events are true.",
+        "has_hard_binding": (any(label.startswith("c2pa.hash") for label in labels) or binding_verified) and not binding_errors,
+        "scope": "Validation reports provenance integrity and signer context separately; it does not prove that depicted events are true.",
     }
 
 
